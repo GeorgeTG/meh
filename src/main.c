@@ -7,8 +7,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/stat.h>
+#include <dirent.h>
 
 #include "meh.h"
+#include "util.h"
 
 #define MODE_NORM 0
 #define MODE_LIST 1
@@ -283,6 +286,38 @@ int process_idle(){
 	}
 }
 
+void images_from_dir(char *path) {
+	DIR* dirp;
+	struct dirent* nextfile;
+	size_t lsize;
+	char path_buf[NAME_MAX];
+
+	lsize = 16;
+	imageslen = 0;
+	images = NULL;
+
+	if ( (dirp = opendir(path)) == NULL ) {
+		fprintf(stderr, "Cannot open directory %s", path );
+		exit(EXIT_FAILURE);
+	}
+
+	images = malloc( lsize * sizeof(char *) );
+	while( (nextfile = readdir(dirp)) != NULL) {
+		combine(path_buf, path, nextfile->d_name);
+		if ( is_file(path_buf) ) {
+			images[imageslen++] = strdup(path_buf);
+		} else {
+			continue;
+		}
+		if (imageslen == lsize) {
+			lsize = lsize * 2;
+			images = realloc(images, lsize * sizeof(char *));
+		}
+	}
+	closedir(dirp);
+}
+
+
 int main(int argc, char *argv[]){
 	if(argc < 2)
 		usage();
@@ -312,9 +347,13 @@ int main(int argc, char *argv[]){
 		return 0;
 	}else{
 		mode = MODE_NORM;
-		images = &argv[1];
-		imageslen = argc-1;
-		imageidx = 0;
+		if (is_dir(argv[1])) {
+			images_from_dir(argv[1]);
+		} else {
+			images = &argv[1];
+			imageslen = argc-1;
+			imageidx = 0;
+		}
 	}
 	backend_init();
 	backend_run();
